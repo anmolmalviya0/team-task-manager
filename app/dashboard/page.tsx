@@ -100,6 +100,7 @@ export default function DashboardPage() {
 
   const overdueTasks = tasks.filter((t) => {
     if (!t.dueDate || t.status === "DONE") return false
+    // const due = new Date(t.dueDate).toLocaleDateString()
     return new Date(t.dueDate) < new Date()
   })
 

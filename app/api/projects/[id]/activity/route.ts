@@ -8,9 +8,7 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   const session = await getServerSession(authOptions)
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  if (!session) return new NextResponse("Unauthorized", { status: 401 })
 
   const activities = await prisma.activity.findMany({
     where: { projectId: params.id },

@@ -12,6 +12,7 @@ export async function GET(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
+  // TODO: add membership check here so random users cant see projects
   const project = await prisma.project.findUnique({
     where: { id: params.id },
     include: {

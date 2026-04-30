@@ -17,6 +17,7 @@ export async function POST(
   }
 
   const { email } = await req.json()
+  console.log("adding member:", email)
 
   const user = await prisma.user.findUnique({ where: { email } })
   if (!user) {
@@ -58,9 +59,13 @@ export async function DELETE(
 
   const { userId } = await req.json()
 
-  await prisma.projectMember.delete({
-    where: { projectId_userId: { projectId: params.id, userId } },
-  })
+  try {
+    await prisma.projectMember.delete({
+      where: { projectId_userId: { projectId: params.id, userId } },
+    })
+  } catch (err) {
+    return NextResponse.json({ error: "Member not found" }, { status: 404 })
+  }
 
   return NextResponse.json({ message: "Member removed" })
 }
