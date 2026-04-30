@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import prisma from "@/lib/prisma"
+import { logActivity } from "@/lib/activity"
 
 export async function GET(
   req: Request,
@@ -67,6 +68,12 @@ export async function PUT(
     },
   })
 
+  const action = body.status ? "changed_status" : "updated_task"
+  const details = body.status
+    ? `${updated.title} → ${body.status.replace("_", " ")}`
+    : updated.title
+  await logActivity(updated.projectId, session.user.id, action, details)
+
   return NextResponse.json(updated)
 }
 
@@ -89,6 +96,7 @@ export async function DELETE(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
+  await logActivity(task.projectId, session.user.id, "deleted_task", task.title)
   await prisma.task.delete({ where: { id: params.id } })
 
   return NextResponse.json({ message: "Task deleted" })

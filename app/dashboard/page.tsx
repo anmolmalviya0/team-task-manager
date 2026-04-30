@@ -15,12 +15,45 @@ interface Task {
   assignedTo: { id: string; name: string } | null
 }
 
+interface Activity {
+  id: string
+  action: string
+  details: string | null
+  createdAt: string
+  user: { name: string }
+}
+
+function SkeletonCard() {
+  return (
+    <div className="bg-white p-4 rounded-lg border animate-pulse">
+      <div className="h-3 bg-gray-200 rounded w-20 mb-2"></div>
+      <div className="h-6 bg-gray-200 rounded w-12"></div>
+    </div>
+  )
+}
+
+function SkeletonList() {
+  return (
+    <div className="bg-white rounded-lg border p-4 animate-pulse">
+      <div className="h-4 bg-gray-200 rounded w-32 mb-4"></div>
+      <div className="space-y-3">
+        <div className="h-3 bg-gray-200 rounded w-full"></div>
+        <div className="h-3 bg-gray-200 rounded w-3/4"></div>
+        <div className="h-3 bg-gray-200 rounded w-5/6"></div>
+      </div>
+    </div>
+  )
+}
+
 export default function DashboardPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const [tasks, setTasks] = useState<Task[]>([])
   const [projects, setProjects] = useState<any[]>([])
+  const [activities, setActivities] = useState<Activity[]>([])
   const [loading, setLoading] = useState(true)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [filterStatus, setFilterStatus] = useState("ALL")
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -40,16 +73,27 @@ export default function DashboardPage() {
       const projectsData = await projectsRes.json()
       setProjects(projectsData)
 
-      // get all tasks from all projects
       const allTasks: Task[] = []
+      const allActivities: Activity[] = []
+
       for (const project of projectsData) {
-        const tasksRes = await fetch(`/api/projects/${project.id}/tasks`)
+        const [tasksRes, activityRes] = await Promise.all([
+          fetch(`/api/projects/${project.id}/tasks`),
+          fetch(`/api/projects/${project.id}/activity`),
+        ])
         const tasksData = await tasksRes.json()
         allTasks.push(
           ...tasksData.map((t: any) => ({ ...t, project: { id: project.id, name: project.name } }))
         )
+        if (activityRes.ok) {
+          const actData = await activityRes.json()
+          allActivities.push(...actData)
+        }
       }
       setTasks(allTasks)
+      // sort by newest first and take top 10
+      allActivities.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      setActivities(allActivities.slice(0, 10))
     } catch {
       console.error("Failed to load dashboard data")
     } finally {
@@ -58,7 +102,21 @@ export default function DashboardPage() {
   }
 
   if (status === "loading" || loading) {
-    return <p className="text-gray-500">Loading dashboard...</p>
+    return (
+      <div>
+        <h1 className="text-2xl font-bold mb-6">Dashboard</h1>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <SkeletonList />
+          <SkeletonList />
+        </div>
+      </div>
+    )
   }
 
   const todoCount = tasks.filter((t) => t.status === "TODO").length
@@ -73,6 +131,33 @@ export default function DashboardPage() {
   const myTasks = tasks.filter(
     (t) => t.assignedTo?.id === session?.user.id && t.status !== "DONE"
   )
+
+  // search + filter
+  const filteredTasks = tasks.filter((t) => {
+    const matchesSearch = t.title.toLowerCase().includes(searchQuery.toLowerCase())
+    const matchesStatus = filterStatus === "ALL" || t.status === filterStatus
+    return matchesSearch && matchesStatus
+  })
+
+  function formatAction(action: string) {
+    const map: Record<string, string> = {
+      created_task: "created",
+      changed_status: "moved",
+      updated_task: "updated",
+      deleted_task: "deleted",
+    }
+    return map[action] || action
+  }
+
+  function timeAgo(dateStr: string) {
+    const diff = Date.now() - new Date(dateStr).getTime()
+    const mins = Math.floor(diff / 60000)
+    if (mins < 1) return "just now"
+    if (mins < 60) return `${mins}m ago`
+    const hours = Math.floor(mins / 60)
+    if (hours < 24) return `${hours}h ago`
+    return `${Math.floor(hours / 24)}d ago`
+  }
 
   return (
     <div>
@@ -98,20 +183,41 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* search and filter */}
+      <div className="flex flex-col sm:flex-row gap-3 mb-6">
+        <input
+          type="text"
+          placeholder="Search tasks..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="flex-1 px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+        <select
+          value={filterStatus}
+          onChange={(e) => setFilterStatus(e.target.value)}
+          className="px-3 py-2 border rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="ALL">All Status</option>
+          <option value="TODO">To Do</option>
+          <option value="IN_PROGRESS">In Progress</option>
+          <option value="DONE">Done</option>
+        </select>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* overdue tasks */}
         <div className="bg-white rounded-lg border p-4">
           <h2 className="font-semibold text-red-600 mb-3">
-            Overdue Tasks ({overdueTasks.length})
+            Overdue ({overdueTasks.length})
           </h2>
           {overdueTasks.length === 0 ? (
             <p className="text-sm text-gray-500">No overdue tasks</p>
           ) : (
             <ul className="space-y-2">
               {overdueTasks.map((task) => (
-                <li key={task.id} className="flex justify-between items-center text-sm">
-                  <span>{task.title}</span>
-                  <span className="text-gray-400">{task.project.name}</span>
+                <li key={task.id} className="text-sm">
+                  <span className="font-medium">{task.title}</span>
+                  <span className="block text-xs text-gray-400">{task.project.name}</span>
                 </li>
               ))}
             </ul>
@@ -139,7 +245,77 @@ export default function DashboardPage() {
             </ul>
           )}
         </div>
+
+        {/* recent activity */}
+        <div className="bg-white rounded-lg border p-4">
+          <h2 className="font-semibold mb-3">Recent Activity</h2>
+          {activities.length === 0 ? (
+            <p className="text-sm text-gray-500">No recent activity</p>
+          ) : (
+            <ul className="space-y-2">
+              {activities.slice(0, 6).map((a) => (
+                <li key={a.id} className="text-sm">
+                  <span className="font-medium">{a.user.name}</span>{" "}
+                  <span className="text-gray-500">{formatAction(a.action)}</span>{" "}
+                  <span className="text-gray-700">{a.details}</span>
+                  <span className="block text-xs text-gray-400">{timeAgo(a.createdAt)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
+
+      {/* filtered tasks table */}
+      {searchQuery || filterStatus !== "ALL" ? (
+        <div className="mt-6 bg-white rounded-lg border p-4">
+          <h2 className="font-semibold mb-3">
+            Results ({filteredTasks.length})
+          </h2>
+          {filteredTasks.length === 0 ? (
+            <p className="text-sm text-gray-500">No tasks match your filters</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left text-gray-500">
+                    <th className="pb-2 font-medium">Task</th>
+                    <th className="pb-2 font-medium">Project</th>
+                    <th className="pb-2 font-medium">Status</th>
+                    <th className="pb-2 font-medium">Priority</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredTasks.slice(0, 10).map((task) => (
+                    <tr key={task.id} className="border-b last:border-0">
+                      <td className="py-2">{task.title}</td>
+                      <td className="py-2 text-gray-500">{task.project.name}</td>
+                      <td className="py-2">
+                        <span className={`px-2 py-0.5 rounded text-xs ${
+                          task.status === "TODO" ? "bg-yellow-100 text-yellow-700" :
+                          task.status === "IN_PROGRESS" ? "bg-blue-100 text-blue-700" :
+                          "bg-green-100 text-green-700"
+                        }`}>
+                          {task.status.replace("_", " ")}
+                        </span>
+                      </td>
+                      <td className="py-2">
+                        <span className={`px-2 py-0.5 rounded text-xs ${
+                          task.priority === "HIGH" ? "bg-red-100 text-red-700" :
+                          task.priority === "MEDIUM" ? "bg-orange-100 text-orange-700" :
+                          "bg-gray-100 text-gray-600"
+                        }`}>
+                          {task.priority}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      ) : null}
 
       {/* projects overview */}
       <div className="mt-6">
@@ -163,7 +339,7 @@ export default function DashboardPage() {
             >
               <h3 className="font-medium">{project.name}</h3>
               <p className="text-sm text-gray-500 mt-1">
-                {project._count.tasks} tasks
+                {project._count?.tasks || 0} tasks
               </p>
             </Link>
           ))}

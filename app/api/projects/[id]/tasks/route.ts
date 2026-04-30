@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import prisma from "@/lib/prisma"
+import { logActivity } from "@/lib/activity"
 
 export async function GET(
   req: Request,
@@ -54,6 +55,8 @@ export async function POST(
       createdBy: { select: { id: true, name: true } },
     },
   })
+
+  await logActivity(params.id, session.user.id, "created_task", task.title)
 
   return NextResponse.json(task, { status: 201 })
 }

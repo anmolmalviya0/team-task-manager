@@ -19,6 +19,7 @@ model User {
   memberships   ProjectMember[]
   tasksCreated  Task[]          @relation("TaskCreator")
   tasksAssigned Task[]          @relation("TaskAssignee")
+  activities    Activity[]
 }
 
 model Project {
@@ -28,9 +29,10 @@ model Project {
   ownerId     String
   createdAt   DateTime @default(now())
 
-  owner   User            @relation(fields: [ownerId], references: [id])
-  members ProjectMember[]
-  tasks   Task[]
+  owner      User            @relation(fields: [ownerId], references: [id])
+  members    ProjectMember[]
+  tasks      Task[]
+  activities Activity[]
 }
 
 model ProjectMember {
@@ -61,4 +63,16 @@ model Task {
   project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   createdBy  User    @relation("TaskCreator", fields: [createdById], references: [id])
   assignedTo User?   @relation("TaskAssignee", fields: [assignedToId], references: [id])
+}
+
+model Activity {
+  id        String   @id @default(cuid())
+  action    String
+  details   String?
+  projectId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id])
 }
