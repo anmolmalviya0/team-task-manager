@@ -63,43 +63,17 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (session) {
-      fetchDashboardData()
+      fetch("/api/dashboard")
+        .then((r) => r.json())
+        .then((data) => {
+          setProjects(data.projects || [])
+          setTasks(data.tasks || [])
+          setActivities(data.activities || [])
+        })
+        .catch(() => console.error("Failed to load dashboard"))
+        .finally(() => setLoading(false))
     }
   }, [session])
-
-  async function fetchDashboardData() {
-    try {
-      const projectsRes = await fetch("/api/projects")
-      const projectsData = await projectsRes.json()
-      setProjects(projectsData)
-
-      const allTasks: Task[] = []
-      const allActivities: Activity[] = []
-
-      for (const project of projectsData) {
-        const [tasksRes, activityRes] = await Promise.all([
-          fetch(`/api/projects/${project.id}/tasks`),
-          fetch(`/api/projects/${project.id}/activity`),
-        ])
-        const tasksData = await tasksRes.json()
-        allTasks.push(
-          ...tasksData.map((t: any) => ({ ...t, project: { id: project.id, name: project.name } }))
-        )
-        if (activityRes.ok) {
-          const actData = await activityRes.json()
-          allActivities.push(...actData)
-        }
-      }
-      setTasks(allTasks)
-      // sort by newest first and take top 10
-      allActivities.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      setActivities(allActivities.slice(0, 10))
-    } catch {
-      console.error("Failed to load dashboard data")
-    } finally {
-      setLoading(false)
-    }
-  }
 
   if (status === "loading" || loading) {
     return (
@@ -111,7 +85,8 @@ export default function DashboardPage() {
           <SkeletonCard />
           <SkeletonCard />
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <SkeletonList />
           <SkeletonList />
           <SkeletonList />
         </div>
@@ -132,7 +107,6 @@ export default function DashboardPage() {
     (t) => t.assignedTo?.id === session?.user.id && t.status !== "DONE"
   )
 
-  // search + filter
   const filteredTasks = tasks.filter((t) => {
     const matchesSearch = t.title.toLowerCase().includes(searchQuery.toLowerCase())
     const matchesStatus = filterStatus === "ALL" || t.status === filterStatus
@@ -161,25 +135,30 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-6">Dashboard</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">Dashboard</h1>
+        <p className="text-sm text-gray-500">
+          Welcome back, {session?.user.name}
+        </p>
+      </div>
 
       {/* stats cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-        <div className="bg-white p-4 rounded-lg border">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div className="bg-white p-4 rounded-lg border hover:shadow-sm transition-shadow">
           <p className="text-sm text-gray-500">Total Tasks</p>
-          <p className="text-2xl font-bold">{tasks.length}</p>
+          <p className="text-2xl font-bold mt-1">{tasks.length}</p>
         </div>
-        <div className="bg-white p-4 rounded-lg border">
+        <div className="bg-white p-4 rounded-lg border border-l-4 border-l-yellow-400">
           <p className="text-sm text-gray-500">To Do</p>
-          <p className="text-2xl font-bold text-yellow-600">{todoCount}</p>
+          <p className="text-2xl font-bold text-yellow-600 mt-1">{todoCount}</p>
         </div>
-        <div className="bg-white p-4 rounded-lg border">
+        <div className="bg-white p-4 rounded-lg border border-l-4 border-l-blue-400">
           <p className="text-sm text-gray-500">In Progress</p>
-          <p className="text-2xl font-bold text-blue-600">{inProgressCount}</p>
+          <p className="text-2xl font-bold text-blue-600 mt-1">{inProgressCount}</p>
         </div>
-        <div className="bg-white p-4 rounded-lg border">
+        <div className="bg-white p-4 rounded-lg border border-l-4 border-l-green-400">
           <p className="text-sm text-gray-500">Completed</p>
-          <p className="text-2xl font-bold text-green-600">{doneCount}</p>
+          <p className="text-2xl font-bold text-green-600 mt-1">{doneCount}</p>
         </div>
       </div>
 
@@ -211,13 +190,13 @@ export default function DashboardPage() {
             Overdue ({overdueTasks.length})
           </h2>
           {overdueTasks.length === 0 ? (
-            <p className="text-sm text-gray-500">No overdue tasks</p>
+            <p className="text-sm text-gray-400">All caught up</p>
           ) : (
             <ul className="space-y-2">
               {overdueTasks.map((task) => (
-                <li key={task.id} className="text-sm">
+                <li key={task.id} className="text-sm border-b pb-2 last:border-0">
                   <span className="font-medium">{task.title}</span>
-                  <span className="block text-xs text-gray-400">{task.project.name}</span>
+                  <span className="block text-xs text-gray-400 mt-0.5">{task.project.name}</span>
                 </li>
               ))}
             </ul>
@@ -228,17 +207,17 @@ export default function DashboardPage() {
         <div className="bg-white rounded-lg border p-4">
           <h2 className="font-semibold mb-3">My Tasks ({myTasks.length})</h2>
           {myTasks.length === 0 ? (
-            <p className="text-sm text-gray-500">No tasks assigned to you</p>
+            <p className="text-sm text-gray-400">Nothing assigned</p>
           ) : (
             <ul className="space-y-2">
               {myTasks.slice(0, 5).map((task) => (
-                <li key={task.id} className="flex justify-between items-center text-sm">
-                  <span>{task.title}</span>
-                  <span className={`px-2 py-0.5 rounded text-xs ${
+                <li key={task.id} className="flex justify-between items-center text-sm border-b pb-2 last:border-0">
+                  <span className="truncate mr-2">{task.title}</span>
+                  <span className={`shrink-0 px-2 py-0.5 rounded text-xs ${
                     task.status === "TODO" ? "bg-yellow-100 text-yellow-700" :
                     "bg-blue-100 text-blue-700"
                   }`}>
-                    {task.status.replace("_", " ")}
+                    {task.status === "IN_PROGRESS" ? "In Progress" : "To Do"}
                   </span>
                 </li>
               ))}
@@ -250,15 +229,15 @@ export default function DashboardPage() {
         <div className="bg-white rounded-lg border p-4">
           <h2 className="font-semibold mb-3">Recent Activity</h2>
           {activities.length === 0 ? (
-            <p className="text-sm text-gray-500">No recent activity</p>
+            <p className="text-sm text-gray-400">No activity yet. Move a task to see it here.</p>
           ) : (
             <ul className="space-y-2">
               {activities.slice(0, 6).map((a) => (
-                <li key={a.id} className="text-sm">
+                <li key={a.id} className="text-sm border-b pb-2 last:border-0">
                   <span className="font-medium">{a.user.name}</span>{" "}
                   <span className="text-gray-500">{formatAction(a.action)}</span>{" "}
                   <span className="text-gray-700">{a.details}</span>
-                  <span className="block text-xs text-gray-400">{timeAgo(a.createdAt)}</span>
+                  <span className="block text-xs text-gray-400 mt-0.5">{timeAgo(a.createdAt)}</span>
                 </li>
               ))}
             </ul>
@@ -266,14 +245,14 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* filtered tasks table */}
+      {/* filtered results */}
       {searchQuery || filterStatus !== "ALL" ? (
         <div className="mt-6 bg-white rounded-lg border p-4">
           <h2 className="font-semibold mb-3">
             Results ({filteredTasks.length})
           </h2>
           {filteredTasks.length === 0 ? (
-            <p className="text-sm text-gray-500">No tasks match your filters</p>
+            <p className="text-sm text-gray-400">No tasks match your filters</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -288,7 +267,7 @@ export default function DashboardPage() {
                 <tbody>
                   {filteredTasks.slice(0, 10).map((task) => (
                     <tr key={task.id} className="border-b last:border-0">
-                      <td className="py-2">{task.title}</td>
+                      <td className="py-2 font-medium">{task.title}</td>
                       <td className="py-2 text-gray-500">{task.project.name}</td>
                       <td className="py-2">
                         <span className={`px-2 py-0.5 rounded text-xs ${
@@ -317,7 +296,7 @@ export default function DashboardPage() {
         </div>
       ) : null}
 
-      {/* projects overview */}
+      {/* projects */}
       <div className="mt-6">
         <div className="flex justify-between items-center mb-3">
           <h2 className="font-semibold">Projects ({projects.length})</h2>
@@ -331,11 +310,11 @@ export default function DashboardPage() {
           )}
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {projects.slice(0, 6).map((project: any) => (
+          {projects.map((project: any) => (
             <Link
               key={project.id}
               href={`/projects/${project.id}`}
-              className="bg-white p-4 rounded-lg border hover:border-blue-300 transition-colors"
+              className="bg-white p-4 rounded-lg border hover:border-blue-300 hover:shadow-sm transition-all"
             >
               <h3 className="font-medium">{project.name}</h3>
               <p className="text-sm text-gray-500 mt-1">
