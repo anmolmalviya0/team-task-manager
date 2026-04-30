@@ -19,6 +19,7 @@ export async function GET() {
     include: {
       owner: { select: { id: true, name: true, email: true } },
       members: { include: { user: { select: { id: true, name: true, email: true } } } },
+      tasks: { select: { status: true } },
       _count: { select: { tasks: true } },
     },
     orderBy: { createdAt: "desc" },

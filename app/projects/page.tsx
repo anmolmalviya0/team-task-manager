@@ -68,27 +68,42 @@ export default function ProjectsPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {projects.map((project) => (
-            <Link
-              key={project.id}
-              href={`/projects/${project.id}`}
-              className="bg-white p-5 rounded-lg border hover:border-blue-300 transition-colors"
-            >
-              <h3 className="font-semibold text-lg">{project.name}</h3>
-              {project.description && (
-                <p className="text-sm text-gray-500 mt-1 line-clamp-2">
-                  {project.description}
-                </p>
-              )}
-              <div className="flex gap-4 mt-3 text-sm text-gray-500">
-                <span>{project._count.tasks} tasks</span>
-                <span>{project.members.length + 1} members</span>
-              </div>
-              <p className="text-xs text-gray-400 mt-2">
-                Owner: {project.owner.name}
-              </p>
-            </Link>
-          ))}
+          {projects.map((project) => {
+            const total = project.tasks?.length || 0
+            const done = project.tasks?.filter((t: any) => t.status === "DONE").length || 0
+            const progress = total > 0 ? Math.round((done / total) * 100) : 0
+
+            return (
+              <Link
+                key={project.id}
+                href={`/projects/${project.id}`}
+                className="bg-white p-5 rounded-lg border hover:border-blue-300 hover:shadow-sm transition-all"
+              >
+                <h3 className="font-semibold text-lg">{project.name}</h3>
+                {project.description && (
+                  <p className="text-sm text-gray-500 mt-1 line-clamp-2">
+                    {project.description}
+                  </p>
+                )}
+                <div className="mt-3">
+                  <div className="flex justify-between text-xs text-gray-500 mb-1">
+                    <span>{done}/{total} completed</span>
+                    <span>{progress}%</span>
+                  </div>
+                  <div className="w-full bg-gray-100 rounded-full h-2">
+                    <div
+                      className="bg-green-500 h-2 rounded-full transition-all"
+                      style={{ width: `${progress}%` }}
+                    ></div>
+                  </div>
+                </div>
+                <div className="flex justify-between items-center mt-3">
+                  <span className="text-sm text-gray-500">{project.members.length + 1} members</span>
+                  <span className="text-xs text-gray-400">Owner: {project.owner.name}</span>
+                </div>
+              </Link>
+            )
+          })}
         </div>
       )}
     </div>
