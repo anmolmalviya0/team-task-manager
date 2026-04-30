@@ -95,7 +95,19 @@ export default function ProjectDetailPage() {
     fetchProject()
   }
 
-  if (loading) return <p className="text-gray-500">Loading...</p>
+  if (loading) {
+    return (
+      <div className="animate-pulse">
+        <div className="h-8 bg-gray-200 rounded w-64 mb-2"></div>
+        <div className="h-4 bg-gray-200 rounded w-96 mb-6"></div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="bg-gray-100 rounded-lg p-3 h-48"></div>
+          ))}
+        </div>
+      </div>
+    )
+  }
   if (!project) return <p className="text-red-500">Project not found</p>
 
   const todoTasks = project.tasks.filter((t) => t.status === "TODO")
